@@ -1,4 +1,3 @@
-
 import requests
 import pandas as pd
 from bs4 import BeautifulSoup
@@ -33,30 +32,50 @@ URL = 'https://finviz.com/screener.ashx?v=152&c=0,1,2,3,4,5,6,7,8,9,10,11,12,13,
 
 
 def getProxies(inURL):
+    print("\nFetching proxies...")
+    try:
+        page = requests.get(inURL, timeout=30)
+        page.raise_for_status()
+        soup = BeautifulSoup(page.text, 'html.parser')
+        terms = soup.find_all('tr')
+        IPs = []
 
-    page = requests.get(inURL)
-    soup = BeautifulSoup(page.text, 'html.parser')
-    terms = soup.find_all('tr')
-    IPs = []
-
-    for x in range(len(terms)):  
-        
-        term = str(terms[x])        
-        
-        if '<tr><td>' in str(terms[x]):
-            pos1 = term.find('d>') + 2
-            pos2 = term.find('</td>')
-
-            pos3 = term.find('</td><td>') + 9
-            pos4 = term.find('</td><td>US<')
+        for x in range(len(terms)):  
+            term = str(terms[x])        
             
-            IP = term[pos1:pos2]
-            port = term[pos3:pos4]
-            
-            if '.' in IP and len(port) < 6:
-                IPs.append(IP + ":" + port)
+            if '<tr><td>' in str(terms[x]):
+                pos1 = term.find('d>') + 2
+                pos2 = term.find('</td>')
 
-    return IPs 
+                pos3 = term.find('</td><td>') + 9
+                pos4 = term.find('</td><td>US<')
+                
+                IP = term[pos1:pos2]
+                port = term[pos3:pos4]
+                
+                if '.' in IP and len(port) < 6:
+                    proxy = f"{IP}:{port}"
+                    # Test the proxy before adding it
+                    try:
+                        test_url = "https://finviz.com"
+                        requests.get(test_url, proxies={"http": proxy}, timeout=5)
+                        IPs.append(proxy)
+                        print(f"Added working proxy: {proxy}")
+                    except:
+                        print(f"Skipping non-working proxy: {proxy}")
+                        continue
+
+        if not IPs:
+            print("Warning: No working proxies found. Will attempt to scrape without proxies.")
+            return []
+            
+        print(f"Successfully found {len(IPs)} working proxies")
+        return IPs
+
+    except Exception as e:
+        print(f"Error fetching proxies: {e}")
+        print("Will attempt to scrape without proxies")
+        return []
 
 
 proxyURL = "https://www.us-proxy.org/"
@@ -73,19 +92,48 @@ useragents.close()
 
 
 def getNumStocks(url):
-
-    agent = random.choice(userAgentList)
-    headers = {'User-Agent': agent}
-
-    page = requests.get(url, headers=headers, proxies = {"http": next(proxyPool)})
-    soup = BeautifulSoup(page.content, 'html.parser')
-
-    tableRows = soup.find_all('div', id = 'screener-total')
+    print("\nGetting total number of stocks...")
+    max_retries = 3
+    retry_count = 0
     
-    raw_num = str(tableRows[0])
-    num_stocks = re.search(r'\d{4,5}', raw_num).group()
-    
-    return float(num_stocks)
+    while retry_count < max_retries:
+        try:
+            agent = random.choice(userAgentList)
+            headers = {'User-Agent': agent}
+            
+            print(f"Attempt {retry_count + 1} with User-Agent: {agent}")
+            
+            page = requests.get(url, headers=headers, timeout=30)
+            page.raise_for_status()
+            soup = BeautifulSoup(page.content, 'html.parser')
+
+            tableRows = soup.find_all('div', id='screener-total')
+            
+            if not tableRows:
+                print("Could not find screener-total div. Page content preview:")
+                print(soup.text[:500])
+                raise ValueError("Could not find stock count element")
+            
+            raw_num = str(tableRows[0])
+            match = re.search(r'\d{4,5}', raw_num)
+            
+            if not match:
+                print("Could not find number in:", raw_num)
+                raise ValueError("Could not extract stock count")
+                
+            num_stocks = float(match.group())
+            print(f"Found {num_stocks} stocks")
+            return num_stocks
+            
+        except Exception as e:
+            print(f"Error getting stock count (attempt {retry_count + 1}): {e}")
+            retry_count += 1
+            if retry_count < max_retries:
+                print("Retrying in 5 seconds...")
+                time.sleep(5)
+            else:
+                print("Max retries reached. Using default value of 200 stocks.")
+                return 200
 
 
 def get_company_data(url, debug=False):
@@ -101,39 +149,62 @@ def get_company_data(url, debug=False):
     with tqdm(total = num_stocks) as pbar:
         
         while pageCounter < num_stocks:
-            agent = random.choice(userAgentList)
-            headers = {'User-Agent': agent}
-
-            page = requests.get(f"{url}&r={pageCounter}", headers=headers, proxies = {"http": next(proxyPool)})
-            
             try:
-                tables = pd.read_html(page.text)
-            except:
-                soup = BeautifulSoup(page.text, 'html.parser')
-                print('PARSE ERRORR', soup)
-            
-            try:    
-                table = tables[-2]  
+                agent = random.choice(userAgentList)
+                headers = {'User-Agent': agent}
+                proxy = next(proxyPool)
                 
-                if pageCounter != 1:
-                    table = table[1:]
-                
-                #print(tables[-2])
-                dataframes.append(table)
-            
-            except:
-                # print('TABLE ERROR', tables)
-                # print(f"{url}&r={pageCounter}")
-                # print()
-                pass
-                
-            pageCounter += 20
+                print(f"\nAttempting to fetch page {pageCounter} with:")
+                print(f"User-Agent: {agent}")
+                print(f"Proxy: {proxy}")
 
-            time.sleep(np.random.uniform(0.5, 1))
-            
-            pbar.update(20)
+                page = requests.get(f"{url}&r={pageCounter}", headers=headers, proxies={"http": proxy}, timeout=30)
+                page.raise_for_status()  # Raise an exception for bad status codes
+                
+                print(f"Page status code: {page.status_code}")
+                
+                try:
+                    tables = pd.read_html(page.text)
+                    print(f"Successfully parsed {len(tables)} tables")
+                except Exception as e:
+                    print(f"Error parsing HTML tables: {e}")
+                    soup = BeautifulSoup(page.text, 'html.parser')
+                    print('Page content preview:', soup.text[:500])
+                    raise
+                
+                try:    
+                    table = tables[-2]  
+                    
+                    if pageCounter != 1:
+                        table = table[1:]
+                    
+                    print(f"Successfully extracted table with shape: {table.shape}")
+                    dataframes.append(table)
+                
+                except Exception as e:
+                    print(f"Error processing table: {e}")
+                    print("Available tables:", [t.shape for t in tables])
+                    raise
+                    
+                pageCounter += 20
+                time.sleep(np.random.uniform(0.5, 1))
+                pbar.update(20)
+                
+            except requests.exceptions.RequestException as e:
+                print(f"Request failed: {e}")
+                time.sleep(5)  # Wait longer on request failure
+                continue
+            except Exception as e:
+                print(f"Unexpected error: {e}")
+                time.sleep(5)
+                continue
 
-    allStockData = pd.concat(dataframes)    
+    if not dataframes:
+        raise ValueError("No data was successfully scraped. Check the logs above for errors.")
+        
+    print("\nConcatenating dataframes...")
+    allStockData = pd.concat(dataframes)
+    print(f"Final dataframe shape: {allStockData.shape}")
 
     
 def remove_outliers(S, std):    
@@ -316,8 +387,8 @@ def load_and_save():
     export_to_csv(f"StockRatings-{today_date}.csv")
 
 
-#if __name__ == "__main__":
-#    load_and_save()
+if __name__ == "__main__":
+    load_and_save()
     
 
 '''
