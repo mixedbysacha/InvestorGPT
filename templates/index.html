@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TickerCalc</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --border: #404040;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .header {
+            background-color: var(--bg-secondary);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .app-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .run-button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .run-button:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .date-info {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .main-content {
+            padding: 2rem;
+            display: grid;
+            grid-template-rows: 1fr 1fr;
+            gap: 2rem;
+            height: calc(100vh - 4rem);
+        }
+
+        .stocks-list {
+            background-color: var(--bg-secondary);
+            border-radius: 0.5rem;
+            padding: 0;
+            overflow-y: auto;
+            overflow-x: auto;
+            max-width: 100vw;
+            height: 50vh;
+            margin-top: 0;
+        }
+
+        .stocks-table {
+            width: max-content;
+            min-width: 100%;
+            border-collapse: collapse;
+            font-size: 0.75rem;
+        }
+
+        .stocks-table th,
+        .stocks-table td {
+            padding: 0.4rem 0.6rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.75rem;
+            white-space: nowrap;
+            background: var(--bg-secondary);
+        }
+
+        .stocks-table th {
+            color: var(--text-secondary);
+            font-weight: 500;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: var(--bg-secondary);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .stocks-table th.ticker-sticky {
+            left: 0;
+            z-index: 20;
+            background: var(--bg-secondary);
+        }
+
+        .stocks-table td.ticker-sticky {
+            position: sticky;
+            left: 0;
+            z-index: 15;
+            background: var(--bg-secondary);
+        }
+
+        .stocks-table tr:hover {
+            background-color: rgba(59, 130, 246, 0.1);
+            cursor: pointer;
+        }
+
+        .bottom-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .chart-container,
+        .analysis-container {
+            background-color: var(--bg-secondary);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .analyze-button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-bottom: 1rem;
+            align-self: flex-start;
+        }
+
+        .analyze-button:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .analysis-content {
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .loading {
+            display: none;
+            color: var(--text-secondary);
+            margin-top: 1rem;
+        }
+
+        .error {
+            color: #ef4444;
+            margin-top: 1rem;
+        }
+
+        .significant-drop {
+            background-color: #2d1515 !important;
+            color: #ef4444 !important;
+        }
+
+        .long-opportunity {
+            background-color: #153d15 !important;
+            color: #22c55e !important;
+        }
+
+        .search-input {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+            outline: none;
+            width: 180px;
+            margin: 0 1rem;
+        }
+        .search-input::placeholder {
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="app-title">TickerCalc</div>
+        <input id="tickerSearch" class="search-input" type="text" placeholder="Search ticker..." oninput="searchTicker()" autocomplete="off" />
+        <div class="date-info">
+            {{ current_date }} | {{ last_fetch_date if last_fetch_date else 'No data' }}
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="stocks-list">
+            <table class="stocks-table">
+                <thead>
+                    <tr id="stocksTableHeader">
+                        <!-- Headers will be rendered dynamically -->
+                    </tr>
+                </thead>
+                <tbody id="stocksTableBody">
+                </tbody>
+            </table>
+        </div>
+
+        <div class="bottom-section">
+            <div class="chart-container">
+                <div id="tradingview-widget"></div>
+            </div>
+            <div class="analysis-container">
+                <div id="selectedStock" class="analysis-content"></div>
+                <div id="loading" class="loading">Analyzing stock...</div>
+                <div id="error" class="error"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <script>
+        let selectedTicker = null;
+        let widget = null;
+        let stocksData = [];
+        let sortColumn = null;
+        let sortAsc = true;
+        let allColumns = [];
+
+        // Master column order as provided by the user
+        const masterColumns = [
+            'Ticker','Company','Market Cap','Overall Rating','Sector','Industry','Country','Valuation Grade','Profitability Grade','Growth Grade','Performance Grade','Fwd P/E','PEG','P/S','P/B','P/C','P/FCF','Dividend','Payout Ratio','EPS this Y','EPS next Y','EPS past 5Y','EPS next 5Y','Sales past 5Y','EPS Q/Q','Sales Q/Q','Insider Own','Insider Trans','Inst Own','Inst Trans','Short Ratio','ROA','ROE','ROI','Curr R','Quick R','LTDebt/Eq','Debt/Eq','Gross M','Oper M','Profit M','Perf Month','Perf Quart','Perf Half','Perf Year','Perf YTD','Volatility M','SMA20','SMA50','SMA200','52W High','52W Low','RSI','Earnings','Price','Target Price','Percent Diff'
+        ];
+
+        function runAnalysis() {
+            fetch('/run_analysis')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        loadStocks();
+                    } else {
+                        showError(data.message);
+                    }
+                })
+                .catch(error => showError(error));
+        }
+
+        function loadStocks() {
+            fetch('/get_stocks')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        stocksData = data.data;
+                        renderTableHeader();
+                        renderTableBody();
+                    } else {
+                        showError(data.message);
+                    }
+                })
+                .catch(error => showError(error));
+        }
+
+        function renderTableHeader() {
+            const headerRow = document.getElementById('stocksTableHeader');
+            headerRow.innerHTML = '';
+            masterColumns.forEach((col, idx) => {
+                const th = document.createElement('th');
+                th.textContent = col;
+                th.onclick = () => sortByColumn(col);
+                if (sortColumn === col) {
+                    th.textContent += sortAsc ? ' ▲' : ' ▼';
+                }
+                if (idx === 0) th.classList.add('ticker-sticky');
+                headerRow.appendChild(th);
+            });
+        }
+
+        function renderTableBody() {
+            const tbody = document.getElementById('stocksTableBody');
+            tbody.innerHTML = '';
+            stocksData.forEach(stock => {
+                const row = document.createElement('tr');
+                row.onclick = () => {
+                    selectStock(stock.Ticker);
+                    analyzeStock(stock.Ticker);
+                };
+                let percentDiff = null;
+                if ('Percent Diff' in stock && stock['Percent Diff'] !== null && !isNaN(stock['Percent Diff'])) {
+                    percentDiff = parseFloat(stock['Percent Diff']);
+                }
+                // Highlight logic: green for long, red for short
+                if (percentDiff !== null && percentDiff < -10) {
+                    row.classList.add('long-opportunity');
+                } else if (percentDiff !== null && percentDiff > 10) {
+                    row.classList.add('significant-drop');
+                }
+                row.innerHTML = masterColumns.map((col, idx) => {
+                    let val = stock[col];
+                    if (val === undefined || val === null || val === '' || (typeof val === 'number' && isNaN(val))) return `<td${idx === 0 ? ' class=\"ticker-sticky\"' : ''}>N/A</td>`;
+                    if (col === 'Market Cap') return `<td${idx === 0 ? ' class=\"ticker-sticky\"' : ''}>${formatMarketCap(val)}</td>`;
+                    if (col === 'Percent Diff' && val !== undefined && val !== null && !isNaN(val)) return `<td${idx === 0 ? ' class=\"ticker-sticky\"' : ''}>${parseFloat(val).toFixed(2)}%</td>`;
+                    return `<td${idx === 0 ? ' class=\"ticker-sticky\"' : ''}>${val}</td>`;
+                }).join('');
+                tbody.appendChild(row);
+            });
+        }
+
+        function sortByColumn(col) {
+            if (sortColumn === col) {
+                sortAsc = !sortAsc;
+            } else {
+                sortColumn = col;
+                sortAsc = true;
+            }
+            stocksData.sort((a, b) => {
+                let aVal = a[col];
+                let bVal = b[col];
+                // Try numeric sort if possible
+                if (!isNaN(parseFloat(aVal)) && !isNaN(parseFloat(bVal))) {
+                    aVal = parseFloat(aVal);
+                    bVal = parseFloat(bVal);
+                }
+                if (aVal < bVal) return sortAsc ? -1 : 1;
+                if (aVal > bVal) return sortAsc ? 1 : -1;
+                return 0;
+            });
+            renderTableHeader();
+            renderTableBody();
+        }
+
+        function selectStock(ticker) {
+            selectedTicker = ticker;
+            updateChart(ticker);
+            document.getElementById('selectedStock').innerHTML = '';
+        }
+
+        function analyzeStock(ticker) {
+            if (!ticker) {
+                showError('Please select a stock first');
+                return;
+            }
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+
+            fetch(`/analyze_stock/${ticker}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('loading').style.display = 'none';
+                    if (data.status === 'success') {
+                        displayAnalysis(data.data);
+                    } else {
+                        showError(data.message);
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('loading').style.display = 'none';
+                    showError(error);
+                });
+        }
+
+        function displayAnalysis(data) {
+            const content = document.getElementById('selectedStock');
+            content.innerHTML = `
+                <h2>${data.company_name} (${selectedTicker})</h2>
+                <p>Overall Financial Health Rating: ${data.rating}/100</p>
+                <p>Net Value: ${formatNumber(data.net_value)}</p>
+                <p>Recovery Potential: ${data.recovery_potential}</p>
+                <p>Valuation Status: ${data.valuation_status}</p>
+                <h3>Recent News & Analysis:</h3>
+                <p>${data.why_fell}</p>
+            `;
+        }
+
+        function updateChart(ticker) {
+            if (widget) {
+                widget.remove();
+            }
+
+            widget = new TradingView.widget({
+                "width": "100%",
+                "height": "100%",
+                "symbol": ticker,
+                "interval": "D",
+                "timezone": "Etc/UTC",
+                "theme": "dark",
+                "style": "1",
+                "locale": "en",
+                "toolbar_bg": "#f1f3f6",
+                "enable_publishing": false,
+                "allow_symbol_change": true,
+                "container_id": "tradingview-widget"
+            });
+        }
+
+        function formatMarketCap(value) {
+            if (!value || value === 'N/A') return 'N/A';
+            const num = parseFloat(value);
+            if (isNaN(num)) return 'N/A';
+            if (num >= 1e12) return `$${(num / 1e12).toFixed(2)}T`;
+            if (num >= 1e9) return `$${(num / 1e9).toFixed(2)}B`;
+            if (num >= 1e6) return `$${(num / 1e6).toFixed(2)}M`;
+            return `$${num.toFixed(2)}`;
+        }
+
+        function formatNumber(value) {
+            if (!value) return 'N/A';
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD'
+            }).format(value);
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function searchTicker() {
+            const input = document.getElementById('tickerSearch').value.trim().toUpperCase();
+            if (!input) return;
+            const tbody = document.getElementById('stocksTableBody');
+            const rows = Array.from(tbody.getElementsByTagName('tr'));
+            let found = false;
+            rows.forEach(row => {
+                if (row.firstChild && row.firstChild.textContent.toUpperCase() === input) {
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    row.click();
+                    found = true;
+                }
+            });
+            // Optionally, you can highlight or shake the input if not found
+        }
+
+        // Load stocks on page load
+        loadStocks();
+    </script>
+</body>
+</html> 

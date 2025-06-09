@@ -369,8 +369,11 @@ def export_to_csv(filename):
     allStockData['Percent Diff'] = (pd.to_numeric(allStockData['Target Price'], errors='coerce') - pd.to_numeric(allStockData['Price'], errors='coerce')) / pd.to_numeric(allStockData['Price'], errors='coerce') * 100
 
     ordered_columns = 'Ticker, Company, Market Cap, Overall Rating, Sector, Industry, Country, Valuation Grade, Profitability Grade, Growth Grade, Performance Grade, Fwd P/E, PEG, P/S, P/B, P/C, P/FCF, Dividend, Payout Ratio, EPS this Y, EPS next Y, EPS past 5Y, EPS next 5Y, Sales past 5Y, EPS Q/Q, Sales Q/Q, Insider Own, Insider Trans, Inst Own, Inst Trans, Short Ratio, ROA, ROE, ROI, Curr R, Quick R, LTDebt/Eq, Debt/Eq, Gross M, Oper M, Profit M, Perf Month, Perf Quart, Perf Half, Perf Year, Perf YTD, Volatility M, SMA20, SMA50, SMA200, 52W High, 52W Low, RSI, Earnings, Price, Target Price, Percent Diff'
-    
-    stock_csv_data = allStockData[ordered_columns.replace(', ', ',').split(',')]
+    col_list = ordered_columns.replace(', ', ',').split(',')
+    for col in col_list:
+        if col not in allStockData.columns:
+            allStockData[col] = 'N/A'
+    stock_csv_data = allStockData[col_list]
     stock_csv_data.to_csv(filename, index=False)
     
     print('\nSaved as', filename)
