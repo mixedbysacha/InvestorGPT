@@ -202,42 +202,180 @@
         .search-input::placeholder {
             color: var(--text-secondary);
         }
+
+        #selectedStock {
+            font-family: 'Fira Mono', 'Menlo', 'Consolas', 'monospace', 'Arial', sans-serif;
+            background: #23272f;
+            color: #f5f5f5;
+            border-radius: 18px;
+            padding: 32px 36px 28px 36px;
+            margin: 24px auto;
+            max-width: 900px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+            font-size: 1.18rem;
+        }
+        #selectedStock h2 {
+            font-size: 2.1rem;
+            font-weight: 700;
+            margin-bottom: 0.5em;
+        }
+        #selectedStock h3 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            color: #4FC3F7;
+            letter-spacing: 0.02em;
+        }
+        #selectedStock ul {
+            padding-left: 1.2em;
+            margin: 0.5em 0 0 0;
+        }
+        #selectedStock li {
+            margin-bottom: 0.3em;
+        }
+        #selectedStock a {
+            color: #4FC3F7;
+            text-decoration: underline;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        #selectedStock a:hover {
+            color: #90CAF9;
+            text-decoration: underline;
+        }
+        #selectedStock p {
+            margin: 0.3em 0 0.3em 0;
+        }
+        #selectedStock .note {
+            color: #FFD54F;
+            font-size: 1rem;
+            margin-top: 0.2em;
+            font-style: italic;
+        }
+
+        .stock-info-section {
+            font-family: 'Fira Mono', 'Menlo', 'Consolas', 'monospace';
+            color: #e0e0e0;
+            margin: 0 auto;
+            max-width: 900px;
+            padding: 0 8px;
+        }
+        .stock-card {
+            background: #23272f;
+            border-radius: 14px;
+            padding: 28px 28px 20px 28px;
+            margin-bottom: 28px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+        }
+        .stock-card h2, .stock-card h3 {
+            color: #4FC3F7;
+            font-weight: 700;
+            margin-bottom: 0.7em;
+            letter-spacing: 0.01em;
+        }
+        .stock-card h3 {
+            font-size: 1.15rem;
+            margin-top: 0.7em;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5em 2em;
+            margin-bottom: 1.2em;
+        }
+        .stats-label {
+            color: #90CAF9;
+            font-weight: 500;
+            font-size: 1.01rem;
+        }
+        .stats-value {
+            color: #FFD54F;
+            font-weight: 600;
+            font-size: 1.08rem;
+            text-align: right;
+        }
+        .company-overview, .performance-section, .analyst-section {
+            margin-bottom: 1.2em;
+        }
+        .news-section ul {
+            list-style: none;
+            padding: 0;
+            margin: 0.5em 0 0 0;
+        }
+        .news-section li {
+            margin-bottom: 0.7em;
+        }
+        .news-section a {
+            color: #4FC3F7;
+            font-size: 1.08rem;
+            text-decoration: underline;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        .news-section a:hover {
+            color: #FFD54F;
+        }
+        .performance-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0.5em;
+        }
+        .performance-table th, .performance-table td {
+            padding: 0.4em 0.7em;
+            text-align: left;
+            font-size: 1.01rem;
+        }
+        .performance-table th {
+            color: #90CAF9;
+            font-weight: 600;
+            border-bottom: 1px solid #333;
+        }
+        .performance-table td {
+            color: #FFD54F;
+            font-weight: 600;
+        }
+        .analyst-section span {
+            color: #FFD54F;
+            font-weight: 600;
+        }
+        .analyst-section .note {
+            color: #FFD54F;
+            font-size: 1rem;
+            margin-top: 0.2em;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <div class="app-title">TickerCalc</div>
+        <div class="app-title">InvestorGPT</div>
         <input id="tickerSearch" class="search-input" type="text" placeholder="Search ticker..." oninput="searchTicker()" autocomplete="off" />
         <div class="date-info">
             {{ current_date }} | {{ last_fetch_date if last_fetch_date else 'No data' }}
         </div>
     </div>
-
-    <div class="main-content">
-        <div class="stocks-list">
+    <div class="main-content" style="display:block; padding:2rem 0;">
+        <!-- 1. Spreadsheet -->
+        <div class="stocks-list" style="width:100%; margin-bottom:2rem;">
             <table class="stocks-table">
                 <thead>
-                    <tr id="stocksTableHeader">
-                        <!-- Headers will be rendered dynamically -->
-                    </tr>
+                    <tr id="stocksTableHeader"></tr>
                 </thead>
-                <tbody id="stocksTableBody">
-                </tbody>
+                <tbody id="stocksTableBody"></tbody>
             </table>
         </div>
-
-        <div class="bottom-section">
-            <div class="chart-container">
-                <div id="tradingview-widget"></div>
-            </div>
-            <div class="analysis-container">
-                <div id="selectedStock" class="analysis-content"></div>
-                <div id="loading" class="loading">Analyzing stock...</div>
-                <div id="error" class="error"></div>
-            </div>
+        <!-- 2. Chart -->
+        <div class="chart-container" style="width:100%; margin-bottom:2rem; min-height:340px;">
+            <div id="tradingview-widget"></div>
+        </div>
+        <!-- 3. Stock Info Section -->
+        <div class="stock-info-section" id="stockInfoSection">
+            <!-- Sections will be populated by JS -->
         </div>
     </div>
-
+    <div id="loading" class="loading">Analyzing stock...</div>
+    <div id="error" class="error"></div>
     <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
     <script>
         let selectedTicker = null;
@@ -351,7 +489,8 @@
         function selectStock(ticker) {
             selectedTicker = ticker;
             updateChart(ticker);
-            document.getElementById('selectedStock').innerHTML = '';
+            const infoSection = document.getElementById('stockInfoSection');
+            if (infoSection) infoSection.innerHTML = '';
         }
 
         function analyzeStock(ticker) {
@@ -380,16 +519,49 @@
         }
 
         function displayAnalysis(data) {
-            const content = document.getElementById('selectedStock');
-            content.innerHTML = `
-                <h2>${data.company_name} (${selectedTicker})</h2>
-                <p>Overall Financial Health Rating: ${data.rating}/100</p>
-                <p>Net Value: ${formatNumber(data.net_value)}</p>
-                <p>Recovery Potential: ${data.recovery_potential}</p>
-                <p>Valuation Status: ${data.valuation_status}</p>
-                <h3>Recent News & Analysis:</h3>
-                <p>${data.why_fell}</p>
-            `;
+            const section = document.getElementById('stockInfoSection');
+            // AI Analysis
+            let aiHtml = `<div class='stock-card'><h2>InvestorGPT Analysis & Recommendation</h2>
+                <div><span class='stats-label'>Prediction:</span> <span class='stats-value'>${data.prediction || 'N/A'}</span></div>
+                <div style='margin:0.7em 0 0.7em 0;'>${data.ai_summary || 'No summary available.'}</div>
+            </div>`;
+            // Summary Grid
+            let summaryHtml = `<div class='stock-card'><h3>Key Stats</h3><div class='stats-grid'>
+                <div class='stats-label'>Current Price</div><div class='stats-value'>${data.price || 'N/A'}</div>
+                <div class='stats-label'>Market Cap</div><div class='stats-value'>${data.market_cap || 'N/A'}</div>
+                <div class='stats-label'>P/E Ratio</div><div class='stats-value'>${data.pe_ratio || 'N/A'}</div>
+                <div class='stats-label'>1Y Target Est</div><div class='stats-value'>${data.target_est || 'N/A'}</div>
+                <div class='stats-label'>EPS (TTM)</div><div class='stats-value'>${data.eps || 'N/A'}</div>
+                <div class='stats-label'>52W Range</div><div class='stats-value'>${data.range_52w || 'N/A'}</div>
+            </div></div>`;
+            // Company Overview
+            let overviewHtml = `<div class='stock-card company-overview'><h3>Company Overview</h3>
+                <div>${data.company_description || 'No description available.'}</div>
+                <div style='margin-top:1em;'><span class='stats-label'>Sector:</span> ${data.sector || 'N/A'} &nbsp; | &nbsp; <span class='stats-label'>Industry:</span> ${data.industry || 'N/A'} &nbsp; | &nbsp; <span class='stats-label'>Employees:</span> ${data.employees || 'N/A'} &nbsp; | &nbsp; <span class='stats-label'>Fiscal Year Ends:</span> ${data.fiscal_year || 'N/A'}</div>
+            </div>`;
+            // News Section
+            let newsHtml = `<div class='stock-card news-section'><h3>Recent News & Analysis</h3><ul>`;
+            if (Array.isArray(data.news_articles) && data.news_articles.length > 0) {
+                newsHtml += data.news_articles.map(article => `<li><a href="${article.link}" target="_blank">${article.title}</a></li>`).join('');
+            } else {
+                newsHtml += '<li>No recent news found.</li>';
+            }
+            newsHtml += '</ul></div>';
+            // Performance Overview
+            let perfHtml = `<div class='stock-card performance-section'><h3>Performance Overview</h3>
+                <table class='performance-table'>
+                    <tr><th>YTD Return</th><td>${data.perf_ytd || 'N/A'}</td></tr>
+                    <tr><th>1-Year Return</th><td>${data.perf_1y || 'N/A'}</td></tr>
+                    <tr><th>3-Year Return</th><td>${data.perf_3y || 'N/A'}</td></tr>
+                    <tr><th>5-Year Return</th><td>${data.perf_5y || 'N/A'}</td></tr>
+                </table>
+            </div>`;
+            // Analyst Targets
+            let analystHtml = `<div class='stock-card analyst-section'><h3>Analyst Price Targets</h3>
+                <div><span>Bearish:</span> ${data.analyst_targets?.bearish || 'N/A'} &nbsp; | &nbsp; <span>Neutral:</span> ${data.analyst_targets?.neutral || 'N/A'} &nbsp; | &nbsp; <span>Bullish:</span> ${data.analyst_targets?.bullish || 'N/A'}</div>
+                <div class='note'>${data.analyst_targets?.note || ''}</div>
+            </div>`;
+            section.innerHTML = aiHtml + summaryHtml + overviewHtml + newsHtml + perfHtml + analystHtml;
         }
 
         function updateChart(ticker) {

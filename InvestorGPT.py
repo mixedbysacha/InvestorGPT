@@ -18,6 +18,8 @@ warnings.filterwarnings("ignore")
 # Load environment variables from apikeys.env
 load_dotenv('apikeys.env')
 ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', '')
+GOOGLE_PSE_ENGINE_ID = os.getenv('GOOGLE_PSE_ENGINE_ID', '')
+GOOGLE_PSE_API_KEY = os.getenv('GOOGLE_PSE_API_KEY', '')
 
 ################################################################################################
 # Helper funcs
@@ -293,75 +295,153 @@ def why_stock_fell(company_name):
 # Get their main metrics and ratios
 # Compare them to competitors
 
-def get_book_value(ticker):
+def get_book_value_from_csv(ticker, csv_file_name):
+    try:
+        df = pd.read_csv(csv_file_name)
+        row = df[df['Ticker'] == ticker]
+        if not row.empty:
+            val = row['Book Value'].iloc[0] if 'Book Value' in row else None
+            if val is not None and val != 'N/A':
+                try:
+                    val = str(val).replace('$','').replace(',','').strip()
+                    if val.endswith('B'):
+                        return float(val[:-1]) * 1e9
+                    elif val.endswith('M'):
+                        return float(val[:-1]) * 1e6
+                    elif val.endswith('K'):
+                        return float(val[:-1]) * 1e3
+                    return float(val)
+                except:
+                    return None
+        return None
+    except Exception as e:
+        print(f"Error getting book value for {ticker} from CSV: {e}")
+        return None
+
+def get_pe_pb_from_csv(ticker, csv_file_name):
+    try:
+        df = pd.read_csv(csv_file_name)
+        row = df[df['Ticker'] == ticker]
+        pe = row['Fwd P/E'].iloc[0] if 'Fwd P/E' in row else None
+        pb = row['P/B'].iloc[0] if 'P/B' in row else None
+        return pe, pb
+    except Exception as e:
+        print(f"Error getting P/E and P/B for {ticker} from CSV: {e}")
+        return None, None
+
+def get_shares_outstanding_from_csv(ticker, csv_file_name):
+    try:
+        df = pd.read_csv(csv_file_name)
+        row = df[df['Ticker'] == ticker]
+        shares = row['Shares Outstanding'].iloc[0] if 'Shares Outstanding' in row else None
+        if shares is not None and shares != 'N/A':
+            try:
+                shares = str(shares).replace(',','').strip()
+                if shares.endswith('B'):
+                    return float(shares[:-1]) * 1e9
+                elif shares.endswith('M'):
+                    return float(shares[:-1]) * 1e6
+                elif shares.endswith('K'):
+                    return float(shares[:-1]) * 1e3
+                return float(shares)
+            except:
+                return None
+        return None
+    except Exception as e:
+        print(f"Error getting shares outstanding for {ticker} from CSV: {e}")
+        return None
+
+def get_book_value(ticker, csv_file_name=None):
+    # Try Yahoo
     try:
         company = yf.Ticker(ticker)
         balance_sheet = company.balance_sheet
-        
-        if balance_sheet is None or balance_sheet.empty:
-            print(f"Warning: No balance sheet data available for {ticker}")
-            return None
-            
-        # Get the most recent quarter's data (first column)
-        balance_sheet = balance_sheet.iloc[:, :1]
-        
-        # Try different possible column names for total assets
-        total_assets = None
-        asset_names = ['Total Assets', 'totalAssets', 'TotalAssets', 'Total assets', 'Total Assets', 'TotalAssets']
-        for asset_name in asset_names:
-            if asset_name in balance_sheet.index:
-                total_assets = balance_sheet.loc[asset_name][0]
-                break
-                
-        if total_assets is None:
-            print(f"Warning: Could not find Total Assets in balance sheet for {ticker}")
-            return None
-            
-        # Try different possible column names for total liabilities
-        total_liabilities = None
-        liability_names = ['Total Liabilities Net Minority Interest', 'TotalLiabilities', 
-                         'Total Liabilities', 'totalLiabilities', 'Total liabilities',
-                         'Total Liab', 'TotalLiab']
-        for liability_name in liability_names:
-            if liability_name in balance_sheet.index:
-                total_liabilities = balance_sheet.loc[liability_name][0]
-                break
-                
-        if total_liabilities is None:
-            print(f"Warning: Could not find Total Liabilities in balance sheet for {ticker}")
-            return None
-            
-        book_value = total_assets - total_liabilities
-        print(f"Calculated book value for {ticker}: {book_value}")
-        return book_value
-        
+        if balance_sheet is not None and not balance_sheet.empty:
+            balance_sheet = balance_sheet.iloc[:, :1]
+            total_assets = None
+            asset_names = ['Total Assets', 'totalAssets', 'TotalAssets', 'Total assets', 'Total Assets', 'TotalAssets']
+            for asset_name in asset_names:
+                if asset_name in balance_sheet.index:
+                    total_assets = balance_sheet.loc[asset_name][0]
+                    break
+            total_liabilities = None
+            liability_names = ['Total Liabilities Net Minority Interest', 'TotalLiabilities', 'Total Liabilities', 'totalLiabilities', 'Total liabilities', 'Total Liab', 'TotalLiab']
+            for liability_name in liability_names:
+                if liability_name in balance_sheet.index:
+                    total_liabilities = balance_sheet.loc[liability_name][0]
+                    break
+            if total_assets is not None and total_liabilities is not None:
+                return total_assets - total_liabilities
     except Exception as e:
-        print(f"Error getting book value for {ticker}: {e}")
-        return None
+        print(f"Error getting book value for {ticker} from Yahoo: {e}")
+    # Try CSV
+    if csv_file_name:
+        val = get_book_value_from_csv(ticker, csv_file_name)
+        if val is not None:
+            # Heuristic: if book value is small, assume per share and try to multiply by shares outstanding
+            if val < 10000:
+                shares = get_shares_outstanding_from_csv(ticker, csv_file_name)
+                if shares is not None:
+                    print(f"[DEBUG] Book value per share for {ticker}: {val}, shares outstanding: {shares}")
+                    return val * shares
+                else:
+                    print(f"[DEBUG] Book value per share for {ticker} but no shares outstanding found. Returning 'N/A'.")
+                    return 'N/A'
+            return val
+    # Try Alpha Vantage
+    if ALPHA_VANTAGE_API_KEY:
+        try:
+            url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={ticker}&apikey={ALPHA_VANTAGE_API_KEY}"
+            response = requests.get(url)
+            data = response.json()
+            if 'BookValue' in data and data['BookValue'] not in [None, 'None', 'N/A', '']:
+                # Alpha Vantage BookValue is per share, so try to get shares outstanding
+                if 'SharesOutstanding' in data and data['SharesOutstanding'] not in [None, 'None', 'N/A', '']:
+                    return float(data['BookValue']) * float(data['SharesOutstanding'])
+                else:
+                    print(f"[DEBUG] Alpha Vantage BookValue per share for {ticker} but no shares outstanding found. Returning 'N/A'.")
+                    return 'N/A'
+        except Exception as e:
+            print(f"Error getting book value for {ticker} from Alpha Vantage: {e}")
+    return 'N/A'
 
-def get_market_cap(ticker):
+def get_market_cap(ticker, csv_file_name=None):
     if "." in ticker:
         ticker = ticker.split(".")[0]
+    # Try Yahoo Finance first
     try:
         company = yf.Ticker(ticker)
         info = company.info
-        
-        # Try different possible keys for market cap
         market_cap = None
         for key in ['marketCap', 'MarketCap', 'market_cap', 'Market Cap']:
             if key in info:
                 market_cap = info[key]
                 print(f"Found market cap using key: {key}")
                 break
-                
-        if market_cap is None:
-            print(f"Warning: Could not find market cap for {ticker}")
-            return None
-            
-        return market_cap
+        if market_cap is not None:
+            return market_cap
+        print(f"Warning: Could not find market cap for {ticker} in Yahoo Finance.")
     except Exception as e:
-        print(f"Error getting market cap for {ticker}: {e}")
-        return None
+        print(f"Error getting market cap for {ticker} from Yahoo Finance: {e}")
+    # Fallback to CSV if provided
+    if csv_file_name:
+        try:
+            df = pd.read_csv(csv_file_name)
+            row = df[df['Ticker'] == ticker]
+            if not row.empty:
+                cap = row['Market Cap'].iloc[0]
+                if isinstance(cap, str):
+                    cap = cap.replace('$','').replace(',','')
+                try:
+                    cap = float(cap)
+                except:
+                    cap = None
+                if cap:
+                    print(f"Using market cap from CSV for {ticker}: {cap}")
+                    return cap
+        except Exception as e:
+            print(f"Error getting market cap for {ticker} from CSV: {e}")
+    return None
 
 def get_net_value(ticker):
     try:
@@ -531,6 +611,116 @@ def analyze_index(ticker):
     except Exception as e:
         print(f"Error analyzing index {ticker}: {e}")
         return None
+
+def get_yahoo_news_headlines(ticker, num_results=3):
+    try:
+        url = f'https://finance.yahoo.com/quote/{ticker}'
+        resp = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        headlines = []
+        for a in soup.select('h3 a, h2 a'):
+            title = a.get_text(strip=True)
+            link = a['href']
+            if not link.startswith('http'):
+                link = 'https://finance.yahoo.com' + link
+            headlines.append({'title': title, 'link': link})
+            if len(headlines) >= num_results:
+                break
+        return headlines if headlines else [{'title': 'No recent news found (Yahoo fallback).', 'link': ''}]
+    except Exception as e:
+        print(f"Error scraping Yahoo news for {ticker}: {e}")
+        return [{'title': 'No recent news found (Yahoo fallback).', 'link': ''}]
+
+def get_news_articles(company_name, num_results=5, ticker=None):
+    # Try Google PSE
+    if not GOOGLE_PSE_ENGINE_ID or not GOOGLE_PSE_API_KEY:
+        print("Google PSE API keys not found.")
+        return get_yahoo_news_headlines(ticker or company_name)
+    query = f"{company_name} stock news"
+    url = (
+        f"https://www.googleapis.com/customsearch/v1?q={query}"
+        f"&cx={GOOGLE_PSE_ENGINE_ID}&key={GOOGLE_PSE_API_KEY}&num={num_results}&gl=us&hl=en"
+    )
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        articles = []
+        for item in data.get('items', [])[:num_results]:
+            title = item.get('title', 'No Title')
+            link = item.get('link', '')
+            articles.append({'title': title, 'link': link})
+        if not articles:
+            return get_yahoo_news_headlines(ticker or company_name)
+        return articles
+    except Exception as e:
+        print(f"Error fetching news articles: {e}")
+        return get_yahoo_news_headlines(ticker or company_name)
+
+# Analyst price targets (bearish, neutral, bullish)
+def get_analyst_targets_from_yahoo(ticker):
+    try:
+        url = f'https://finance.yahoo.com/quote/{ticker}/analysis'
+        resp = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        # Yahoo's analyst price targets are on the /quote/{ticker} page, not /analysis
+        url_main = f'https://finance.yahoo.com/quote/{ticker}'
+        resp_main = requests.get(url_main, headers={'User-Agent': 'Mozilla/5.0'})
+        soup_main = BeautifulSoup(resp_main.text, 'html.parser')
+        # Look for price target table
+        table = soup_main.find('section', {'data-test': 'qsp-analyst'})
+        if not table:
+            # Try to find by text
+            for span in soup_main.find_all('span'):
+                if '1y Target Est' in span.text:
+                    try:
+                        mean = span.find_next('td').text.strip()
+                        return {'bearish': 'N/A', 'neutral': mean, 'bullish': 'N/A', 'note': 'Scraped from Yahoo Finance web page.'}
+                    except:
+                        continue
+            return {'bearish': 'N/A', 'neutral': 'N/A', 'bullish': 'N/A', 'note': 'Could not scrape analyst targets from Yahoo.'}
+        # Try to extract low, mean, high from the table
+        rows = table.find_all('tr')
+        low = mean = high = 'N/A'
+        for row in rows:
+            cells = row.find_all('td')
+            if len(cells) == 2:
+                label = cells[0].text.lower()
+                value = cells[1].text.strip()
+                if 'low' in label:
+                    low = value
+                elif 'average' in label or 'mean' in label:
+                    mean = value
+                elif 'high' in label:
+                    high = value
+        return {'bearish': low, 'neutral': mean, 'bullish': high, 'note': 'Scraped from Yahoo Finance web page.'}
+    except Exception as e:
+        print(f"Error scraping analyst targets for {ticker} from Yahoo: {e}")
+        return {'bearish': 'N/A', 'neutral': 'N/A', 'bullish': 'N/A', 'note': 'Could not scrape analyst targets from Yahoo.'}
+
+def get_analyst_price_targets(ticker):
+    try:
+        company = yf.Ticker(ticker)
+        rec = company.recommendations
+        if rec is not None and not rec.empty:
+            info = company.info
+            bearish = info.get('targetLowPrice', 'N/A')
+            neutral = info.get('targetMeanPrice', 'N/A')
+            bullish = info.get('targetHighPrice', 'N/A')
+            if all(x in [None, 'N/A', ''] for x in [bearish, neutral, bullish]):
+                # Fallback to scraping
+                return get_analyst_targets_from_yahoo(ticker)
+            return {
+                'bearish': bearish if bearish is not None else 'N/A',
+                'neutral': neutral if neutral is not None else 'N/A',
+                'bullish': bullish if bullish is not None else 'N/A'
+            }
+        else:
+            # Fallback to scraping
+            return get_analyst_targets_from_yahoo(ticker)
+    except Exception as e:
+        print(f"Error fetching analyst price targets for {ticker}: {e}")
+        return get_analyst_targets_from_yahoo(ticker)
 
 def main():
     print("\n=== InvestorGPT: Stock Recovery Analysis ===\n")
